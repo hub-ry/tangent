@@ -25,3 +25,27 @@ function generateTrack(controlPoints, segments) {
   }
   return trackPoints;
 }
+
+function generateBoundaries(trackPoints, trackWidth) {
+  let innerPoints = [];
+  let outerPoints = [];
+
+  for (let i = 0; i < trackPoints.length; i++) {
+    const p1 = trackPoints[i];
+    const p2 = trackPoints[(i + 1) % trackPoints.length];
+    
+    // Calculate the direction vector of the line segment
+    const direction = p5.Vector.sub(p2, p1).normalize();
+    
+    // Calculate the normal (perpendicular) vector
+    const normal = createVector(-direction.y, direction.x);
+
+    // Get the inner and outer points
+    const inner = p5.Vector.sub(p1, p5.Vector.mult(normal, trackWidth / 2));
+    const outer = p5.Vector.add(p1, p5.Vector.mult(normal, trackWidth / 2));
+
+    innerPoints.push(inner);
+    outerPoints.push(outer);
+  }
+  return { inner: innerPoints, outer: outerPoints };
+}
