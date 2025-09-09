@@ -4,9 +4,11 @@ let trackCurvePoints = [];
 let trackBoundaries;
 let playerLinePoints = [];
 let startTime = 0;
-let zoomedViewActive = false; // New flag for the zoomed view
-let startLinePoint1; // New variables for the start line
-let startLinePoint2; 
+let isGameOver = false;
+let finalScore;
+let zoomedViewActive = false;
+let startLinePoint1;
+let startLinePoint2;
 
 // Game constants
 const boxes = 16;
@@ -14,14 +16,16 @@ const canvas_size = 800;
 const POINT_PROBABILITY = 0.5;
 const CORNER_PROBABILITY = 0.3;
 const TRACK_WIDTH = 25; 
-const ZOOM_FACTOR = 3; // How much to zoom in
+const ZOOM_FACTOR = 3;
 
 function setup() {
   createCanvas(canvas_size, canvas_size);
   
+  // Calculate grid dimensions
   const sections = sqrt(boxes);
   const spacing = canvas_size / sections;
 
+  // Generate the random control points with a probability check
   for (let y = 0; y < sections; y++) {
     for (let x = 0; x < sections; x++) {
       if (random() < POINT_PROBABILITY) {
@@ -30,6 +34,7 @@ function setup() {
         const px = random(box_x_start, box_x_start + spacing);
         const py = random(box_y_start, box_y_start + spacing);
         
+        // Add a "isCorner" property with a random chance
         let isCorner = false;
         if (random() < CORNER_PROBABILITY) {
           isCorner = true;
@@ -44,14 +49,17 @@ function setup() {
     }
   }
 
+  // Ensure there are at least 3 points to prevent errors
   if (controlPoints.length < 3) {
       for (let i = 0; i < 4; i++) {
         controlPoints.push(createVector(random(width), random(height)));
       }
   }
   
+  // Sort the points by angle to prevent track overlap
   controlPoints = sortPoints(controlPoints);
 
+  // Generate the smooth centerline and the track boundaries
   trackCurvePoints = generateTrack(controlPoints, 100);
   trackBoundaries = generateBoundaries(trackCurvePoints, TRACK_WIDTH);
 
@@ -67,6 +75,7 @@ function setup() {
 }
 
 function draw() {
+  // Clear the canvas on every frame
   background(220); 
   
   // Draw the grid lines
@@ -108,20 +117,29 @@ function draw() {
     line(startLinePoint1.x, startLinePoint1.y, startLinePoint2.x, startLinePoint2.y);
   }
   
-  // Player's drawing logic
-  if (mouseIsPressed) {
-    playerLinePoints.push(createVector(mouseX, mouseY));
-    
-    // Start the timer on the first click
-    if (startTime === 0) {
-      startTime = frameCount; 
+  // Player's drawing logic (only when game is not over)
+  if (!isGameOver) {
+    if (mouseIsPressed) {
+      playerLinePoints.push(createVector(mouseX, mouseY));
+      
+      if (startTime === 0) {
+        startTime = frameCount; 
+      }
+      zoomedViewActive = true;
+    } else {
+      zoomedViewActive = false;
+      
+      // End of game trigger: if mouse is released and a line has been drawn
+      if (playerLinePoints.length > 0 && !isGameOver) {
+        const finalTime = (frameCount - startTime) / 60;
+        finalScore = calculateFinalScore(playerLinePoints, trackCurvePoints, finalTime);
+        isGameOver = true;
+        console.log("Final Score:", finalScore);
+      }
     }
-    zoomedViewActive = true; // Activate zoomed view when mouse is pressed
-  } else {
-    zoomedViewActive = false; // Deactivate zoomed view when mouse is not pressed
   }
   
-  // Draw the player's drawn line (always drawn on the main canvas)
+  // Draw the player's drawn line
   noFill();
   stroke(0, 0, 255); 
   strokeWeight(5);
@@ -132,7 +150,7 @@ function draw() {
   endShape();
   
   // Stopwatch logic
-  if (startTime > 0) {
+  if (startTime > 0 && !isGameOver) {
     let elapsedFrames = frameCount - startTime;
     let elapsedSeconds = (elapsedFrames / 60).toFixed(2);
     
@@ -141,35 +159,50 @@ function draw() {
     text(elapsedSeconds, 10, 30);
   }
 
-  // Zoomed-in view (only when active)
-  if (zoomedViewActive) {
-    push(); // Save current drawing state
+  // Display the final score when the game is over
+  if (isGameOver) {
+    textSize(48);
+    textAlign(CENTER);
+    fill(0);
+    text("Final Score: " + finalScore.total, width / 2, height / 2);
+    textSize(24);
+    text("Accuracy: " + finalScore.accuracy + " / 720", width / 2, height / 2 + 50);
+    text("Time: " + finalScore.time + " / 480", width / 2, height / 2 + 80);
+    
+    // NEW: Draw the ideal racing line
+    noFill();
+    stroke(255, 0, 0); // Draw in red
+    strokeWeight(5);
+    beginShape();
+    for (let point of trackCurvePoints) {
+      vertex(point.x, point.y);
+    }
+    endShape();
+  }
 
-    // Move to mouse position and scale up
+  // Zoomed-in view (only when active and not over)
+  if (zoomedViewActive && !isGameOver) {
+    push();
     translate(mouseX, mouseY);
     scale(ZOOM_FACTOR);
-    translate(-mouseX, -mouseY); // Translate back to keep mouse at center of zoomed view
+    translate(-mouseX, -mouseY);
 
-    // Draw a magnified circle around the mouse cursor
-    // The main background is already drawn, so we draw a new circle to contain the zoomed area
-    fill(255, 255, 255, 150); // Semi-transparent white background for the zoomed circle
+    fill(255, 255, 255, 150);
     stroke(0);
     strokeWeight(1);
-    circle(mouseX, mouseY, 100); // Draw the circle for the magnified view
+    circle(mouseX, mouseY, 100);
 
-    // Re-draw the player's line points within the zoomed circle to make them visible
     noFill();
-    stroke(0, 0, 255); // Blue
-    strokeWeight(5 / ZOOM_FACTOR); // Adjust stroke weight for zoom
+    stroke(0, 0, 255);
+    strokeWeight(5 / ZOOM_FACTOR);
     beginShape();
     for (let point of playerLinePoints) {
       vertex(point.x, point.y);
     }
     endShape();
 
-    // Re-draw the track boundaries within the zoomed circle
-    stroke(100, 100, 100); // Gray
-    strokeWeight(2 / ZOOM_FACTOR); // Adjust stroke weight for zoom
+    stroke(100, 100, 100);
+    strokeWeight(2 / ZOOM_FACTOR);
     beginShape();
     for (let point of trackBoundaries.outer) {
       vertex(point.x, point.y);
@@ -182,15 +215,15 @@ function draw() {
     }
     endShape(CLOSE);
 
-    // Draw a small red dot at the actual mouse position for precision
-    fill(255, 0, 0); // Red
+    fill(255, 0, 0);
     noStroke();
-    circle(mouseX, mouseY, 4 / ZOOM_FACTOR); // Smaller dot for magnified precision
+    circle(mouseX, mouseY, 4 / ZOOM_FACTOR);
 
-    pop(); // Restore original drawing state
+    pop();
   }
 }
 
+// Function to sort points by angle (needed for a non-overlapping track)
 function sortPoints(points) {
   let centerX = 0;
   let centerY = 0;
@@ -208,4 +241,4 @@ function sortPoints(points) {
   });
 
   return points;
-}g
+}
