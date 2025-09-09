@@ -2,6 +2,7 @@
 let controlPoints = [];
 let trackCurvePoints = [];
 let trackBoundaries;
+let idealRacingLine = []; // The new, intelligent ideal line
 let playerLinePoints = [];
 let startTime = 0;
 let isGameOver = false;
@@ -62,6 +63,9 @@ function setup() {
   // Generate the smooth centerline and the track boundaries
   trackCurvePoints = generateTrack(controlPoints, 100);
   trackBoundaries = generateBoundaries(trackCurvePoints, TRACK_WIDTH);
+
+  // Calculate the more intelligent ideal racing line
+  idealRacingLine = generateIdealRacingLine(trackCurvePoints, trackBoundaries);
 
   // Calculate Start Line (using the first point of the outer boundary for reference)
   if (trackBoundaries.outer.length > 0) {
@@ -132,7 +136,8 @@ function draw() {
       // End of game trigger: if mouse is released and a line has been drawn
       if (playerLinePoints.length > 0 && !isGameOver) {
         const finalTime = (frameCount - startTime) / 60;
-        finalScore = calculateFinalScore(playerLinePoints, trackCurvePoints, finalTime);
+        // Pass the NEW idealRacingLine to the scoring function
+        finalScore = calculateFinalScore(playerLinePoints, idealRacingLine, finalTime);
         isGameOver = true;
         console.log("Final Score:", finalScore);
       }
@@ -169,12 +174,12 @@ function draw() {
     text("Accuracy: " + finalScore.accuracy + " / 720", width / 2, height / 2 + 50);
     text("Time: " + finalScore.time + " / 480", width / 2, height / 2 + 80);
     
-    // NEW: Draw the ideal racing line
+    // Draw the ideal racing line to show the player
     noFill();
     stroke(255, 0, 0); // Draw in red
     strokeWeight(5);
     beginShape();
-    for (let point of trackCurvePoints) {
+    for (let point of idealRacingLine) {
       vertex(point.x, point.y);
     }
     endShape();

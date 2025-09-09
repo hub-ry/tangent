@@ -1,5 +1,5 @@
 // Function to calculate the final score
-function calculateFinalScore(playerLine, idealLine, userTime, trackLength) {
+function calculateFinalScore(playerLine, idealLine, userTime, trackLength, trackBoundaries) {
   // Constants for scoring adjustments
   const minRequiredLineLength = trackLength * 0.98; // 98% of track length
   const closedLoopTolerance = 30; // Max distance for a closed loop
@@ -14,6 +14,14 @@ function calculateFinalScore(playerLine, idealLine, userTime, trackLength) {
   const loopDistance = dist(lastPlayerPoint.x, lastPlayerPoint.y, firstIdealPoint.x, firstIdealPoint.y);
   if (loopDistance > closedLoopTolerance) {
     return { accuracy: 0, time: 0, total: 400, message: "Line did not close the loop." };
+  }
+
+  // --- New Off-Track Check and Penalty ---
+  const offTrackPenalty = checkOffTrack(playerLine, trackBoundaries);
+  const totalOffTrackPenalty = offTrackPenalty > 0 ? 500 : 0; // A severe penalty for going off track
+
+  if (totalOffTrackPenalty > 0) {
+      return { accuracy: 0, time: 0, total: 400 - totalOffTrackPenalty, message: "You went off the track!" };
   }
 
   // --- Accuracy Score (60% weight) ---
@@ -40,7 +48,7 @@ function calculateFinalScore(playerLine, idealLine, userTime, trackLength) {
   
   let smoothnessPenalty = 0;
   if (pointDensity > maxPointDensity) {
-    smoothnessPenalty = (pointDensity - maxPointDensity) * 5; // 5 points per extra density
+    smoothnessPenalty = (pointDensity - maxPointDensity) * 5;
   }
 
   // --- Time Score (40% weight) ---
@@ -57,6 +65,34 @@ function calculateFinalScore(playerLine, idealLine, userTime, trackLength) {
     total: round(finalScore),
     message: "Success!"
   };
+}
+
+// Helper function to check if a line is outside the boundaries
+function checkOffTrack(playerLine, trackBoundaries) {
+  for (let playerPoint of playerLine) {
+    let isInside = false;
+    let minDistanceToOuter = Infinity;
+    let minDistanceToInner = Infinity;
+    
+    // Find the minimum distance to both boundaries
+    for (let i = 0; i < trackBoundaries.outer.length; i++) {
+        const outerPoint = trackBoundaries.outer[i];
+        const innerPoint = trackBoundaries.inner[i];
+        
+        let dOuter = dist(playerPoint.x, playerPoint.y, outerPoint.x, outerPoint.y);
+        let dInner = dist(playerPoint.x, playerPoint.y, innerPoint.x, innerPoint.y);
+        
+        if (dOuter < minDistanceToOuter) minDistanceToOuter = dOuter;
+        if (dInner < minDistanceToInner) minDistanceToInner = dInner;
+    }
+    
+    // Simple check: if a point is outside both boundaries, it's off track
+    if (minDistanceToOuter > 10 && minDistanceToInner > 10) { // Using a tolerance
+      // This is a simple heuristic. A more robust check would involve checking which side of the line the point is on.
+      return true;
+    }
+  }
+  return false;
 }
 
 // Helper function to calculate the length of a line

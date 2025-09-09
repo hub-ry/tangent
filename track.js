@@ -49,3 +49,55 @@ function generateBoundaries(trackPoints, trackWidth) {
   }
   return { inner: innerPoints, outer: outerPoints };
 }
+
+// A function to find the tight corners and generate a realistic ideal racing line
+function generateIdealRacingLine(centerlinePoints, trackBoundaries) {
+  let idealRacingLine = [];
+  const minAngleDiff = 0.5; // Threshold for identifying a corner
+  const idealOffset = 0.4; // 40% offset from centerline
+
+  // Step 1: Find the tight corners
+  let cornerIndices = [];
+  for (let i = 0; i < centerlinePoints.length; i++) {
+    const p_prev = centerlinePoints[ (i - 1 + centerlinePoints.length) % centerlinePoints.length];
+    const p_curr = centerlinePoints[i];
+    const p_next = centerlinePoints[ (i + 1) % centerlinePoints.length];
+
+    const angle1 = atan2(p_curr.y - p_prev.y, p_curr.x - p_prev.x);
+    const angle2 = atan2(p_next.y - p_curr.y, p_next.x - p_curr.x);
+    let angleDiff = abs(angle2 - angle1);
+    if (angleDiff > PI) angleDiff = 2 * PI - angleDiff;
+    
+    if (angleDiff > minAngleDiff) {
+      cornerIndices.push(i);
+    }
+  }
+
+  if (cornerIndices.length < 2) {
+      return centerlinePoints; // Fallback to centerline if no corners found
+  }
+
+  // Step 2: Create a new line connecting the "outside-apex-outside" points
+  for (let i = 0; i < centerlinePoints.length; i++) {
+    const p_curr = centerlinePoints[i];
+
+    // Check if the current point is a corner
+    const isCorner = cornerIndices.includes(i);
+    const isStraight = !isCorner && !cornerIndices.includes((i - 1 + centerlinePoints.length) % centerlinePoints.length);
+
+    if (isCorner) {
+      // Find the apex point on the inner boundary
+      const innerBoundaryPoint = trackBoundaries.inner[i];
+      idealRacingLine.push(innerBoundaryPoint);
+    } else if (isStraight) {
+      // For straights, stay on the centerline
+      idealRacingLine.push(p_curr);
+    } else {
+      // This is a transition point, move towards the outside
+      const outerBoundaryPoint = trackBoundaries.outer[i];
+      idealRacingLine.push(outerBoundaryPoint);
+    }
+  }
+
+  return idealRacingLine;
+}
